@@ -145,7 +145,7 @@ for ORIG_MERGE_FILE in $MERGE_LIST ; do
 		NEW_VAL=$(grep -w $CFG $MERGE_FILE)
 		BUILTIN_FLAG=false
 		if [ "$BUILTIN" = "true" ] && [ "${NEW_VAL#CONFIG_*=}" = "m" ] && [ "${PREV_VAL#CONFIG_*=}" = "y" ]; then
-			${WARNOVVERIDE} Previous  value: $PREV_VAL
+			${WARNOVERRIDE} Previous  value: $PREV_VAL
 			${WARNOVERRIDE} New value:       $NEW_VAL
 			${WARNOVERRIDE} -y passed, will not demote y to m
 			${WARNOVERRIDE}
@@ -167,6 +167,8 @@ for ORIG_MERGE_FILE in $MERGE_LIST ; do
 			sed -i "/$CFG[ =]/d" $MERGE_FILE
 		fi
 	done
+	# In case the previous file lacks a new line at the end
+	echo >> $TMP_FILE
 	cat $MERGE_FILE >> $TMP_FILE
 done
 

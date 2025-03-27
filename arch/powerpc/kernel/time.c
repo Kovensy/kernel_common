@@ -71,11 +71,11 @@
 #include <asm/vdso_datapage.h>
 #include <asm/firmware.h>
 #include <asm/mce.h>
+#include <asm/systemcfg.h>
 
 /* powerpc clocksource/clockevent code */
 
 #include <linux/clockchips.h>
-#include <linux/timekeeper_internal.h>
 
 static u64 timebase_read(struct clocksource *);
 static struct clocksource clocksource_timebase = {
@@ -353,6 +353,28 @@ void vtime_flush(struct task_struct *tsk)
 	acct->stime = 0;
 	acct->hardirq_time = 0;
 	acct->softirq_time = 0;
+}
+
+/*
+ * Called from the context switch with interrupts disabled, to charge all
+ * accumulated times to the current process, and to prepare accounting on
+ * the next process.
+ */
+void vtime_task_switch(struct task_struct *prev)
+{
+	if (is_idle_task(prev))
+		vtime_account_idle(prev);
+	else
+		vtime_account_kernel(prev);
+
+	vtime_flush(prev);
+
+	if (!IS_ENABLED(CONFIG_PPC64)) {
+		struct cpu_accounting_data *acct = get_accounting(current);
+		struct cpu_accounting_data *acct0 = get_accounting(prev);
+
+		acct->starttime = acct0->starttime;
+	}
 }
 #endif /* CONFIG_VIRT_CPU_ACCOUNTING_NATIVE */
 
@@ -673,7 +695,7 @@ static int __init get_freq(char *name, int cells, unsigned long *val)
 
 static void start_cpu_decrementer(void)
 {
-#ifdef CONFIG_BOOKE_OR_40x
+#ifdef CONFIG_BOOKE
 	unsigned int tcr;
 
 	/* Clear any pending timer interrupts */
@@ -887,7 +909,11 @@ void __init time_init(void)
 	unsigned shift;
 
 	/* Normal PowerPC with timebase register */
-	ppc_md.calibrate_decr();
+	if (ppc_md.calibrate_decr)
+		ppc_md.calibrate_decr();
+	else
+		generic_calibrate_decr();
+
 	printk(KERN_DEBUG "time_init: decrementer frequency = %lu.%.6lu MHz\n",
 	       ppc_tb_freq / 1000000, ppc_tb_freq % 1000000);
 	printk(KERN_DEBUG "time_init: processor frequency   = %lu.%.6lu MHz\n",
@@ -925,6 +951,9 @@ void __init time_init(void)
 	}
 
 	vdso_data->tb_ticks_per_sec = tb_ticks_per_sec;
+#ifdef CONFIG_PPC64_PROC_SYSTEMCFG
+	systemcfg->tb_ticks_per_sec = tb_ticks_per_sec;
+#endif
 
 	/* initialise and enable the large decrementer (if we have one) */
 	set_decrementer_max();

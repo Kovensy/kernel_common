@@ -186,9 +186,6 @@ static loff_t hmcdrv_dev_seek(struct file *fp, loff_t pos, int whence)
 	if (pos < 0)
 		return -EINVAL;
 
-	if (fp->f_pos != pos)
-		++fp->f_version;
-
 	fp->f_pos = pos;
 	return pos;
 }
@@ -308,7 +305,7 @@ int hmcdrv_dev_init(void)
 	 * /proc/devices), but not under /dev nor /sys/devices/virtual. So
 	 * we have to create an associated class (see /sys/class).
 	 */
-	hmcdrv_dev_class = class_create(THIS_MODULE, HMCDRV_DEV_CLASS);
+	hmcdrv_dev_class = class_create(HMCDRV_DEV_CLASS);
 
 	if (IS_ERR(hmcdrv_dev_class)) {
 		rc = PTR_ERR(hmcdrv_dev_class);

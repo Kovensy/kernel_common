@@ -923,7 +923,6 @@ static void xgbe_phy_free_phy_device(struct xgbe_prv_data *pdata)
 
 static bool xgbe_phy_finisar_phy_quirks(struct xgbe_prv_data *pdata)
 {
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(supported) = { 0, };
 	struct xgbe_phy_data *phy_data = pdata->phy_data;
 	unsigned int phy_id = phy_data->phydev->phy_id;
 
@@ -945,14 +944,7 @@ static bool xgbe_phy_finisar_phy_quirks(struct xgbe_prv_data *pdata)
 	phy_write(phy_data->phydev, 0x04, 0x0d01);
 	phy_write(phy_data->phydev, 0x00, 0x9140);
 
-	linkmode_set_bit_array(phy_10_100_features_array,
-			       ARRAY_SIZE(phy_10_100_features_array),
-			       supported);
-	linkmode_set_bit_array(phy_gbit_features_array,
-			       ARRAY_SIZE(phy_gbit_features_array),
-			       supported);
-
-	linkmode_copy(phy_data->phydev->supported, supported);
+	linkmode_copy(phy_data->phydev->supported, PHY_GBIT_FEATURES);
 
 	phy_support_asym_pause(phy_data->phydev);
 
@@ -964,7 +956,6 @@ static bool xgbe_phy_finisar_phy_quirks(struct xgbe_prv_data *pdata)
 
 static bool xgbe_phy_belfuse_phy_quirks(struct xgbe_prv_data *pdata)
 {
-	__ETHTOOL_DECLARE_LINK_MODE_MASK(supported) = { 0, };
 	struct xgbe_phy_data *phy_data = pdata->phy_data;
 	struct xgbe_sfp_eeprom *sfp_eeprom = &phy_data->sfp_eeprom;
 	unsigned int phy_id = phy_data->phydev->phy_id;
@@ -1028,13 +1019,7 @@ static bool xgbe_phy_belfuse_phy_quirks(struct xgbe_prv_data *pdata)
 	reg = phy_read(phy_data->phydev, 0x00);
 	phy_write(phy_data->phydev, 0x00, reg & ~0x00800);
 
-	linkmode_set_bit_array(phy_10_100_features_array,
-			       ARRAY_SIZE(phy_10_100_features_array),
-			       supported);
-	linkmode_set_bit_array(phy_gbit_features_array,
-			       ARRAY_SIZE(phy_gbit_features_array),
-			       supported);
-	linkmode_copy(phy_data->phydev->supported, supported);
+	linkmode_copy(phy_data->phydev->supported, PHY_GBIT_FEATURES);
 	phy_support_asym_pause(phy_data->phydev);
 
 	netif_dbg(pdata, drv, pdata->netdev,
@@ -2782,9 +2767,9 @@ static bool xgbe_phy_valid_speed_baset_mode(struct xgbe_prv_data *pdata,
 
 	switch (speed) {
 	case SPEED_10:
-		/* Supported in ver >= 30H */
+		/* Supported in ver 21H and ver >= 30H */
 		ver = XGMAC_GET_BITS(pdata->hw_feat.version, MAC_VR, SNPSVER);
-		return (ver >= 0x30) ? true : false;
+		return (ver == 0x21 || ver >= 0x30);
 	case SPEED_100:
 	case SPEED_1000:
 		return true;
@@ -2806,9 +2791,10 @@ static bool xgbe_phy_valid_speed_sfp_mode(struct xgbe_prv_data *pdata,
 
 	switch (speed) {
 	case SPEED_10:
-		/* Supported in ver >= 30H */
+		/* Supported in ver 21H and ver >= 30H */
 		ver = XGMAC_GET_BITS(pdata->hw_feat.version, MAC_VR, SNPSVER);
-		return (ver >= 0x30) && (phy_data->sfp_speed == XGBE_SFP_SPEED_100_1000);
+		return ((ver == 0x21 || ver >= 0x30) &&
+			(phy_data->sfp_speed == XGBE_SFP_SPEED_100_1000));
 	case SPEED_100:
 		return (phy_data->sfp_speed == XGBE_SFP_SPEED_100_1000);
 	case SPEED_1000:
@@ -3158,9 +3144,9 @@ static bool xgbe_phy_port_mode_mismatch(struct xgbe_prv_data *pdata)
 	struct xgbe_phy_data *phy_data = pdata->phy_data;
 	unsigned int ver;
 
-	/* 10 Mbps speed is not supported in ver < 30H */
+	/* 10 Mbps speed is supported in ver 21H and ver >= 30H */
 	ver = XGMAC_GET_BITS(pdata->hw_feat.version, MAC_VR, SNPSVER);
-	if (ver < 0x30 && (phy_data->port_speeds & XGBE_PHY_PORT_SPEED_10))
+	if ((ver < 0x30 && ver != 0x21) && (phy_data->port_speeds & XGBE_PHY_PORT_SPEED_10))
 		return true;
 
 	switch (phy_data->port_mode) {

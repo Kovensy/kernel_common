@@ -974,7 +974,7 @@ static void update_guest_context(struct intel_vgpu_workload *workload)
 	context_page_num = rq->engine->context_size;
 	context_page_num = context_page_num >> PAGE_SHIFT;
 
-	if (IS_BROADWELL(rq->engine->i915) && rq->engine->id == RCS0)
+	if (IS_BROADWELL(rq->i915) && rq->engine->id == RCS0)
 		context_page_num = 19;
 
 	context_base = (void *) ctx->lrc_reg_state -
@@ -1052,7 +1052,7 @@ void intel_vgpu_clean_workloads(struct intel_vgpu *vgpu,
 	struct intel_vgpu_workload *pos, *n;
 	intel_engine_mask_t tmp;
 
-	/* free the unsubmited workloads in the queues. */
+	/* free the unsubmitted workloads in the queues. */
 	for_each_engine_masked(engine, vgpu->gvt->gt, engine_mask, tmp) {
 		list_for_each_entry_safe(pos, n,
 			&s->workload_q_head[engine->id], list) {

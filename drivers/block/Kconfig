@@ -130,7 +130,7 @@ config BLK_DEV_UBD_SYNC
           kernel command line option.  Alternatively, you can say Y here to
           turn on synchronous operation by default for all block devices.
 
-          If you're running a journalling file system (like reiserfs, for
+          If you're running a journalling file system (like xfs, for
           example) in your virtual machine, you will want to say Y here.  If
           you care for the safety of the data in your virtual machine, Y is a
           wise choice too.  In all other cases (for example, if you're just
@@ -354,6 +354,15 @@ config VIRTIO_BLK
 	  This is the virtual block driver for virtio.  It can be used with
           QEMU based VMMs (like KVM or Xen).  Say Y or M.
 
+config BLK_DEV_RUST_NULL
+	tristate "Rust null block driver (Experimental)"
+	depends on RUST
+	help
+	  This is the Rust implementation of the null block driver. For now it
+	  is only a minimal stub.
+
+	  If unsure, say N.
+
 config BLK_DEV_RBD
 	tristate "Rados block device (RBD)"
 	depends on INET && BLOCK
@@ -384,6 +393,23 @@ config BLK_DEV_UBLK
 	  shared between IO tasks and ubq daemon, meantime task_work_add() can
 	  can handle batch more effectively, but task_work_add() isn't exported
 	  for module, so ublk has to be built to kernel.
+
+config BLKDEV_UBLK_LEGACY_OPCODES
+	bool "Support legacy command opcode"
+	depends on BLK_DEV_UBLK
+	default y
+	help
+	  ublk driver started to take plain command encoding, which turns out
+	  one bad way. The traditional ioctl command opcode encodes more
+	  info and basically defines each code uniquely, so opcode conflict
+	  is avoided, and driver can handle wrong command easily, meantime it
+	  may help security subsystem to audit io_uring command.
+
+	  Say Y if your application still uses legacy command opcode.
+
+	  Say N if you don't want to support legacy command opcode. It is
+	  suggested to enable N if your application(ublk server) switches to
+	  ioctl command encoding.
 
 source "drivers/block/rnbd/Kconfig"
 

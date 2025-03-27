@@ -244,7 +244,7 @@ static const struct of_device_id htu21_of_match[] = {
 MODULE_DEVICE_TABLE(of, htu21_of_match);
 
 static struct i2c_driver htu21_driver = {
-	.probe_new = htu21_probe,
+	.probe = htu21_probe,
 	.id_table = htu21_id,
 	.driver = {
 		   .name = "htu21",
@@ -258,4 +258,4 @@ MODULE_DESCRIPTION("Measurement-Specialties htu21 temperature and humidity drive
 MODULE_AUTHOR("William Markezana <william.markezana@meas-spec.com>");
 MODULE_AUTHOR("Ludovic Tancerel <ludovic.tancerel@maplehightech.com>");
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(IIO_MEAS_SPEC_SENSORS);
+MODULE_IMPORT_NS("IIO_MEAS_SPEC_SENSORS");

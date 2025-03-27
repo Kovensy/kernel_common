@@ -8,8 +8,8 @@
 
 #include <linux/gpio/driver.h>
 #include <linux/i2c.h>
-#include <linux/of_device.h>
 #include <linux/module.h>
+#include <linux/property.h>
 #include <linux/regmap.h>
 
 #define DEFAULT_PIN_NUMBER	32
@@ -142,7 +142,7 @@ static int ts4900_gpio_probe(struct i2c_client *client)
 	u32 ngpio;
 	int ret;
 
-	if (of_property_read_u32(client->dev.of_node, "ngpios", &ngpio))
+	if (device_property_read_u32(&client->dev, "ngpios", &ngpio))
 		ngpio = DEFAULT_PIN_NUMBER;
 
 	priv = devm_kzalloc(&client->dev, sizeof(*priv), GFP_KERNEL);
@@ -153,7 +153,7 @@ static int ts4900_gpio_probe(struct i2c_client *client)
 	priv->gpio_chip.label = "ts4900-gpio";
 	priv->gpio_chip.ngpio = ngpio;
 	priv->gpio_chip.parent = &client->dev;
-	priv->input_bit = (uintptr_t)of_device_get_match_data(&client->dev);
+	priv->input_bit = (uintptr_t)device_get_match_data(&client->dev);
 
 	priv->regmap = devm_regmap_init_i2c(client, &ts4900_regmap_config);
 	if (IS_ERR(priv->regmap)) {
@@ -185,7 +185,7 @@ static struct i2c_driver ts4900_gpio_driver = {
 		.name = "ts4900-gpio",
 		.of_match_table = ts4900_gpio_of_match_table,
 	},
-	.probe_new = ts4900_gpio_probe,
+	.probe = ts4900_gpio_probe,
 	.id_table = ts4900_gpio_id_table,
 };
 module_i2c_driver(ts4900_gpio_driver);

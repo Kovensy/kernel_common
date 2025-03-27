@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-3-Clause-Clear */
 /*
  * Copyright (c) 2018-2021 The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2022, 2024 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "core.h"
 
@@ -597,8 +597,30 @@ struct hal_tlv_64_hdr {
 #define RX_MPDU_DESC_INFO0_MPDU_QOS_CTRL_VALID	BIT(27)
 #define RX_MPDU_DESC_INFO0_TID			GENMASK(31, 28)
 
-/* TODO revisit after meta data is concluded */
-#define RX_MPDU_DESC_META_DATA_PEER_ID		GENMASK(15, 0)
+/* Peer Metadata classification */
+
+/* Version 0 */
+#define RX_MPDU_DESC_META_DATA_V0_PEER_ID	GENMASK(15, 0)
+#define RX_MPDU_DESC_META_DATA_V0_VDEV_ID	GENMASK(23, 16)
+
+/* Version 1 */
+#define RX_MPDU_DESC_META_DATA_V1_PEER_ID		GENMASK(13, 0)
+#define RX_MPDU_DESC_META_DATA_V1_LOGICAL_LINK_ID	GENMASK(15, 14)
+#define RX_MPDU_DESC_META_DATA_V1_VDEV_ID		GENMASK(23, 16)
+#define RX_MPDU_DESC_META_DATA_V1_LMAC_ID		GENMASK(25, 24)
+#define RX_MPDU_DESC_META_DATA_V1_DEVICE_ID		GENMASK(28, 26)
+
+/* Version 1A */
+#define RX_MPDU_DESC_META_DATA_V1A_PEER_ID		GENMASK(13, 0)
+#define RX_MPDU_DESC_META_DATA_V1A_VDEV_ID		GENMASK(21, 14)
+#define RX_MPDU_DESC_META_DATA_V1A_LOGICAL_LINK_ID	GENMASK(25, 22)
+#define RX_MPDU_DESC_META_DATA_V1A_DEVICE_ID		GENMASK(28, 26)
+
+/* Version 1B */
+#define RX_MPDU_DESC_META_DATA_V1B_PEER_ID	GENMASK(13, 0)
+#define RX_MPDU_DESC_META_DATA_V1B_VDEV_ID	GENMASK(21, 14)
+#define RX_MPDU_DESC_META_DATA_V1B_HW_LINK_ID	GENMASK(25, 22)
+#define RX_MPDU_DESC_META_DATA_V1B_DEVICE_ID	GENMASK(28, 26)
 
 struct rx_mpdu_desc {
 	__le32 info0; /* %RX_MPDU_DESC_INFO */
@@ -706,7 +728,7 @@ struct rx_msdu_desc {
  *
  * msdu_continuation
  *		When set, this MSDU buffer was not able to hold the entire MSDU.
- *		The next buffer will therefor contain additional information
+ *		The next buffer will therefore contain additional information
  *		related to this MSDU.
  *
  * msdu_length
@@ -1294,7 +1316,7 @@ struct hal_tcl_data_cmd {
  *		link descriptor.
  *
  * tcl_cmd_type
- *		used to select the type of TCL Command decriptor
+ *		used to select the type of TCL Command descriptor
  *
  * desc_type
  *		Indicates the type of address provided in the buf_addr_info.
@@ -1408,7 +1430,7 @@ struct hal_tcl_data_cmd {
  * index_loop_override
  *		When set, address search and packet routing is forced to use
  *		'search_index' instead of following the register configuration
- *		seleced by Bank_id.
+ *		selected by Bank_id.
  *
  * ring_id
  *		The buffer pointer ring ID.
@@ -1990,7 +2012,7 @@ struct hal_wbm_release_ring {
  *	Producer: SW/TQM/RXDMA/REO/SWITCH
  *	Consumer: WBM/SW/FW
  *
- * HTT tx status is overlayed on wbm_release ring on 4-byte words 2, 3, 4 and 5
+ * HTT tx status is overlaid on wbm_release ring on 4-byte words 2, 3, 4 and 5
  * for software based completions.
  *
  * buf_addr_info
@@ -2048,6 +2070,19 @@ struct hal_wbm_release_ring {
  *	fw with fw_reason2.
  * @HAL_WBM_TQM_REL_REASON_CMD_REMOVE_RESEAON3: Remove command initiated by
  *	fw with fw_reason3.
+ * @HAL_WBM_TQM_REL_REASON_CMD_DISABLE_QUEUE: Remove command initiated by
+ *	fw with disable queue.
+ * @HAL_WBM_TQM_REL_REASON_CMD_TILL_NONMATCHING: Remove command initiated by
+ *	fw to remove all mpdu until 1st non-match.
+ * @HAL_WBM_TQM_REL_REASON_DROP_THRESHOLD: Dropped due to drop threshold
+ *	criteria
+ * @HAL_WBM_TQM_REL_REASON_DROP_LINK_DESC_UNAVAIL: Dropped due to link desc
+ *	not available
+ * @HAL_WBM_TQM_REL_REASON_DROP_OR_INVALID_MSDU: Dropped due drop bit set or
+ *	null flow
+ * @HAL_WBM_TQM_REL_REASON_MULTICAST_DROP: Dropped due mcast drop set for VDEV
+ * @HAL_WBM_TQM_REL_REASON_VDEV_MISMATCH_DROP: Dropped due to being set with
+ *	'TCL_drop_reason'
  */
 enum hal_wbm_tqm_rel_reason {
 	HAL_WBM_TQM_REL_REASON_FRAME_ACKED,
@@ -2058,6 +2093,13 @@ enum hal_wbm_tqm_rel_reason {
 	HAL_WBM_TQM_REL_REASON_CMD_REMOVE_RESEAON1,
 	HAL_WBM_TQM_REL_REASON_CMD_REMOVE_RESEAON2,
 	HAL_WBM_TQM_REL_REASON_CMD_REMOVE_RESEAON3,
+	HAL_WBM_TQM_REL_REASON_CMD_DISABLE_QUEUE,
+	HAL_WBM_TQM_REL_REASON_CMD_TILL_NONMATCHING,
+	HAL_WBM_TQM_REL_REASON_DROP_THRESHOLD,
+	HAL_WBM_TQM_REL_REASON_DROP_LINK_DESC_UNAVAIL,
+	HAL_WBM_TQM_REL_REASON_DROP_OR_INVALID_MSDU,
+	HAL_WBM_TQM_REL_REASON_MULTICAST_DROP,
+	HAL_WBM_TQM_REL_REASON_VDEV_MISMATCH_DROP,
 };
 
 struct hal_wbm_buffer_ring {
@@ -2500,13 +2542,13 @@ struct hal_rx_reo_queue {
 #define HAL_REO_UPD_RX_QUEUE_INFO1_PN_HANDLE_ENABLE		BIT(30)
 #define HAL_REO_UPD_RX_QUEUE_INFO1_IGNORE_AMPDU_FLG		BIT(31)
 
-#define HAL_REO_UPD_RX_QUEUE_INFO2_BA_WINDOW_SIZE		GENMASK(7, 0)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_SIZE			GENMASK(9, 8)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_SVLD				BIT(10)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_SSN				GENMASK(22, 11)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_SEQ_2K_ERR			BIT(23)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_ERR			BIT(24)
-#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_VALID			BIT(25)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_BA_WINDOW_SIZE		GENMASK(9, 0)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_SIZE			GENMASK(11, 10)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_SVLD				BIT(12)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_SSN				GENMASK(24, 13)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_SEQ_2K_ERR			BIT(25)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_ERR			BIT(26)
+#define HAL_REO_UPD_RX_QUEUE_INFO2_PN_VALID			BIT(27)
 
 struct hal_reo_update_rx_queue {
 	struct hal_reo_cmd_hdr cmd;
@@ -2515,6 +2557,12 @@ struct hal_reo_update_rx_queue {
 	__le32 info1;
 	__le32 info2;
 	__le32 pn[4];
+} __packed;
+
+struct hal_rx_reo_queue_1k {
+	struct hal_desc_header desc_hdr;
+	__le32 rx_bitmap_1023_288[23];
+	__le32 reserved[8];
 } __packed;
 
 #define HAL_REO_UNBLOCK_CACHE_INFO0_UNBLK_CACHE		BIT(0)
@@ -2552,7 +2600,7 @@ struct hal_reo_status_hdr {
  *		commands.
  *
  * execution_time (in us)
- *		The amount of time REO took to excecute the command. Note that
+ *		The amount of time REO took to execute the command. Note that
  *		this time does not include the duration of the command waiting
  *		in the command ring, before the execution started.
  *
@@ -2956,6 +3004,31 @@ struct hal_mon_dest_desc {
  *	updated by SRNG.
  * looping_count
  *	updated by SRNG.
+ */
+
+#define HAL_TX_MSDU_METADATA_INFO0_ENCRYPT_FLAG		BIT(8)
+#define HAL_TX_MSDU_METADATA_INFO0_ENCRYPT_TYPE		GENMASK(16, 15)
+#define HAL_TX_MSDU_METADATA_INFO0_HOST_TX_DESC_POOL	BIT(31)
+
+struct hal_tx_msdu_metadata {
+	__le32 info0;
+	__le32 rsvd0[6];
+} __packed;
+
+/* hal_tx_msdu_metadata
+ * valid_encrypt_type
+ *		if set, encrypt type is valid
+ * encrypt_type
+ *		0 = NO_ENCRYPT,
+ *		1 = ENCRYPT,
+ *		2 ~ 3 - Reserved
+ * host_tx_desc_pool
+ *		If set, Firmware allocates tx_descriptors
+ *		in WAL_BUFFERID_TX_HOST_DATA_EXP,instead
+ *		of WAL_BUFFERID_TX_TCL_DATA_EXP.
+ *		Use cases:
+ *		Any time firmware uses TQM-BYPASS for Data
+ *		TID, firmware expect host to set this bit.
  */
 
 #endif /* ATH12K_HAL_DESC_H */

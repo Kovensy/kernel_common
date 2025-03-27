@@ -33,7 +33,8 @@
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <linux/regmap.h>
-#include <linux/string_helpers.h>
+#include <linux/string_choices.h>
+#include <linux/types.h>
 #include <linux/units.h>
 
 #include <linux/iio/buffer.h>
@@ -893,15 +894,14 @@ static irqreturn_t msa311_buffer_thread(int irq, void *p)
 	__le16 axis;
 	struct {
 		__le16 channels[MSA311_SI_Z + 1];
-		s64 ts __aligned(8);
+		aligned_s64 ts;
 	} buf;
 
 	memset(&buf, 0, sizeof(buf));
 
 	mutex_lock(&msa311->lock);
 
-	for_each_set_bit(bit, indio_dev->active_scan_mask,
-			 indio_dev->masklength) {
+	iio_for_each_active_channel(indio_dev, bit) {
 		chan = &msa311_channels[bit];
 
 		err = msa311_get_axis(msa311, chan, &axis);
@@ -951,7 +951,7 @@ static irqreturn_t msa311_irq_thread(int irq, void *p)
 	}
 
 	if (new_data_int_enabled)
-		iio_trigger_poll_chained(msa311->new_data_trig);
+		iio_trigger_poll_nested(msa311->new_data_trig);
 
 	return IRQ_HANDLED;
 }
@@ -1034,10 +1034,10 @@ static int msa311_chip_init(struct msa311_priv *msa311)
 				     "failed to unmap map0/map1 interrupts\n");
 
 	/* Disable all axes by default */
-	err = regmap_update_bits(msa311->regs, MSA311_ODR_REG,
-				 MSA311_GENMASK(F_X_AXIS_DIS) |
-				 MSA311_GENMASK(F_Y_AXIS_DIS) |
-				 MSA311_GENMASK(F_Z_AXIS_DIS), 0);
+	err = regmap_clear_bits(msa311->regs, MSA311_ODR_REG,
+				MSA311_GENMASK(F_X_AXIS_DIS) |
+				MSA311_GENMASK(F_Y_AXIS_DIS) |
+				MSA311_GENMASK(F_Z_AXIS_DIS));
 	if (err)
 		return dev_err_probe(dev, err, "can't enable all axes\n");
 
@@ -1294,7 +1294,7 @@ static struct i2c_driver msa311_driver = {
 		.of_match_table = msa311_of_match,
 		.pm = pm_ptr(&msa311_pm_ops),
 	},
-	.probe_new	= msa311_probe,
+	.probe		= msa311_probe,
 	.id_table	= msa311_i2c_id,
 };
 module_i2c_driver(msa311_driver);

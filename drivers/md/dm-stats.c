@@ -56,7 +56,7 @@ struct dm_stat {
 	size_t percpu_alloc_size;
 	size_t histogram_alloc_size;
 	struct dm_stat_percpu *stat_percpu[NR_CPUS];
-	struct dm_stat_shared stat_shared[];
+	struct dm_stat_shared stat_shared[] __counted_by(n_entries);
 };
 
 #define STAT_PRECISE_TIMESTAMPS		1
@@ -65,6 +65,9 @@ struct dm_stats_last_position {
 	sector_t last_sector;
 	unsigned int last_rw;
 };
+
+#define DM_STAT_MAX_ENTRIES		8388608
+#define DM_STAT_MAX_HISTOGRAM_ENTRIES	134217728
 
 /*
  * A typo on the command line could possibly make the kernel run out of memory
@@ -188,7 +191,7 @@ static int dm_stat_in_flight(struct dm_stat_shared *shared)
 	       atomic_read(&shared->in_flight[WRITE]);
 }
 
-void dm_stats_init(struct dm_stats *stats)
+int dm_stats_init(struct dm_stats *stats)
 {
 	int cpu;
 	struct dm_stats_last_position *last;
@@ -197,11 +200,16 @@ void dm_stats_init(struct dm_stats *stats)
 	INIT_LIST_HEAD(&stats->list);
 	stats->precise_timestamps = false;
 	stats->last = alloc_percpu(struct dm_stats_last_position);
+	if (!stats->last)
+		return -ENOMEM;
+
 	for_each_possible_cpu(cpu) {
 		last = per_cpu_ptr(stats->last, cpu);
 		last->last_sector = (sector_t)ULLONG_MAX;
 		last->last_rw = UINT_MAX;
 	}
+
+	return 0;
 }
 
 void dm_stats_cleanup(struct dm_stats *stats)
@@ -280,6 +288,9 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 	if (n_entries != (size_t)n_entries || !(size_t)(n_entries + 1))
 		return -EOVERFLOW;
 
+	if (n_entries > DM_STAT_MAX_ENTRIES)
+		return -EOVERFLOW;
+
 	shared_alloc_size = struct_size(s, stat_shared, n_entries);
 	if ((shared_alloc_size - sizeof(struct dm_stat)) / sizeof(struct dm_stat_shared) != n_entries)
 		return -EOVERFLOW;
@@ -290,6 +301,9 @@ static int dm_stats_create(struct dm_stats *stats, sector_t start, sector_t end,
 
 	histogram_alloc_size = (n_histogram_entries + 1) * (size_t)n_entries * sizeof(unsigned long long);
 	if (histogram_alloc_size / (n_histogram_entries + 1) != (size_t)n_entries * sizeof(unsigned long long))
+		return -EOVERFLOW;
+
+	if ((n_histogram_entries + 1) * (size_t)n_entries > DM_STAT_MAX_HISTOGRAM_ENTRIES)
 		return -EOVERFLOW;
 
 	if (!check_shared_memory(shared_alloc_size + histogram_alloc_size +

@@ -66,21 +66,20 @@ SYM_FUNC_START(loongarch_suspend_enter)
 	la.pcrel	a0, loongarch_wakeup_start
 	la.pcrel	t0, loongarch_suspend_addr
 	ld.d		t0, t0, 0
-	jirl		a0, t0, 0 /* Call BIOS's STR sleep routine */
+	jirl		ra, t0, 0 /* Call BIOS's STR sleep routine */
 
 	/*
 	 * This is where we return upon wakeup.
 	 * Reload all of the registers and return.
 	 */
 SYM_INNER_LABEL(loongarch_wakeup_start, SYM_L_GLOBAL)
-	li.d		t0, CSR_DMW0_INIT	# UC, PLV0
-	csrwr		t0, LOONGARCH_CSR_DMWIN0
-	li.d		t0, CSR_DMW1_INIT	# CA, PLV0
-	csrwr		t0, LOONGARCH_CSR_DMWIN1
+	SETUP_DMWINS	t0
+	JUMP_VIRT_ADDR	t0, t1
 
-	la.abs		t0, 0f
-	jr		t0
-0:
+	/* Enable PG */
+	li.w		t0, 0xb0		# PLV=0, IE=0, PG=1
+	csrwr		t0, LOONGARCH_CSR_CRMD
+
 	la.pcrel	t0, acpi_saved_sp
 	ld.d		sp, t0, 0
 	SETUP_WAKEUP

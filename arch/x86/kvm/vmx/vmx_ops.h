@@ -6,16 +6,16 @@
 
 #include <asm/vmx.h>
 
-#include "hyperv.h"
+#include "vmx_onhyperv.h"
 #include "vmcs.h"
 #include "../x86.h"
 
-void vmread_error(unsigned long field, bool fault);
+void vmread_error(unsigned long field);
 void vmwrite_error(unsigned long field, unsigned long value);
 void vmclear_error(struct vmcs *vmcs, u64 phys_addr);
 void vmptrld_error(struct vmcs *vmcs, u64 phys_addr);
 void invvpid_error(unsigned long ext, u16 vpid, gva_t gva);
-void invept_error(unsigned long ext, u64 eptp, gpa_t gpa);
+void invept_error(unsigned long ext, u64 eptp);
 
 #ifndef CONFIG_CC_HAS_ASM_GOTO_OUTPUT
 /*
@@ -31,6 +31,13 @@ void invept_error(unsigned long ext, u64 eptp, gpa_t gpa);
  * void vmread_error_trampoline(unsigned long field, bool fault);
  */
 extern unsigned long vmread_error_trampoline;
+
+/*
+ * The second VMREAD error trampoline, called from the assembly trampoline,
+ * exists primarily to enable instrumentation for the VM-Fail path.
+ */
+void vmread_error_trampoline2(unsigned long field, bool fault);
+
 #endif
 
 static __always_inline void vmcs_check16(unsigned long field)
@@ -40,7 +47,7 @@ static __always_inline void vmcs_check16(unsigned long field)
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && ((field) & 0x6001) == 0x2001,
 			 "16-bit accessor invalid for 64-bit high field");
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && ((field) & 0x6000) == 0x4000,
-			 "16-bit accessor invalid for 32-bit high field");
+			 "16-bit accessor invalid for 32-bit field");
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && ((field) & 0x6000) == 0x6000,
 			 "16-bit accessor invalid for natural width field");
 }
@@ -87,7 +94,7 @@ static __always_inline unsigned long __vmcs_readl(unsigned long field)
 
 #ifdef CONFIG_CC_HAS_ASM_GOTO_OUTPUT
 
-	asm_volatile_goto("1: vmread %[field], %[output]\n\t"
+	asm_goto_output("1: vmread %[field], %[output]\n\t"
 			  "jna %l[do_fail]\n\t"
 
 			  _ASM_EXTABLE(1b, %l[do_exception])
@@ -101,8 +108,7 @@ static __always_inline unsigned long __vmcs_readl(unsigned long field)
 
 do_fail:
 	instrumentation_begin();
-	WARN_ONCE(1, KBUILD_MODNAME ": vmread failed: field=%lx\n", field);
-	pr_warn_ratelimited(KBUILD_MODNAME ": vmread failed: field=%lx\n", field);
+	vmread_error(field);
 	instrumentation_end();
 	return 0;
 
@@ -147,7 +153,7 @@ do_exception:
 static __always_inline u16 vmcs_read16(unsigned long field)
 {
 	vmcs_check16(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_read16(field);
 	return __vmcs_readl(field);
 }
@@ -155,7 +161,7 @@ static __always_inline u16 vmcs_read16(unsigned long field)
 static __always_inline u32 vmcs_read32(unsigned long field)
 {
 	vmcs_check32(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_read32(field);
 	return __vmcs_readl(field);
 }
@@ -163,7 +169,7 @@ static __always_inline u32 vmcs_read32(unsigned long field)
 static __always_inline u64 vmcs_read64(unsigned long field)
 {
 	vmcs_check64(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_read64(field);
 #ifdef CONFIG_X86_64
 	return __vmcs_readl(field);
@@ -175,14 +181,14 @@ static __always_inline u64 vmcs_read64(unsigned long field)
 static __always_inline unsigned long vmcs_readl(unsigned long field)
 {
 	vmcs_checkl(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_read64(field);
 	return __vmcs_readl(field);
 }
 
 #define vmx_asm1(insn, op1, error_args...)				\
 do {									\
-	asm_volatile_goto("1: " __stringify(insn) " %0\n\t"		\
+	asm goto("1: " __stringify(insn) " %0\n\t"			\
 			  ".byte 0x2e\n\t" /* branch not taken hint */	\
 			  "jna %l[error]\n\t"				\
 			  _ASM_EXTABLE(1b, %l[fault])			\
@@ -199,7 +205,7 @@ fault:									\
 
 #define vmx_asm2(insn, op1, op2, error_args...)				\
 do {									\
-	asm_volatile_goto("1: "  __stringify(insn) " %1, %0\n\t"	\
+	asm goto("1: "  __stringify(insn) " %1, %0\n\t"			\
 			  ".byte 0x2e\n\t" /* branch not taken hint */	\
 			  "jna %l[error]\n\t"				\
 			  _ASM_EXTABLE(1b, %l[fault])			\
@@ -222,7 +228,7 @@ static __always_inline void __vmcs_writel(unsigned long field, unsigned long val
 static __always_inline void vmcs_write16(unsigned long field, u16 value)
 {
 	vmcs_check16(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write16(field, value);
 
 	__vmcs_writel(field, value);
@@ -231,7 +237,7 @@ static __always_inline void vmcs_write16(unsigned long field, u16 value)
 static __always_inline void vmcs_write32(unsigned long field, u32 value)
 {
 	vmcs_check32(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write32(field, value);
 
 	__vmcs_writel(field, value);
@@ -240,7 +246,7 @@ static __always_inline void vmcs_write32(unsigned long field, u32 value)
 static __always_inline void vmcs_write64(unsigned long field, u64 value)
 {
 	vmcs_check64(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write64(field, value);
 
 	__vmcs_writel(field, value);
@@ -252,7 +258,7 @@ static __always_inline void vmcs_write64(unsigned long field, u64 value)
 static __always_inline void vmcs_writel(unsigned long field, unsigned long value)
 {
 	vmcs_checkl(field);
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write64(field, value);
 
 	__vmcs_writel(field, value);
@@ -262,7 +268,7 @@ static __always_inline void vmcs_clear_bits(unsigned long field, u32 mask)
 {
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && ((field) & 0x6000) == 0x2000,
 			 "vmcs_clear_bits does not support 64-bit fields");
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write32(field, evmcs_read32(field) & ~mask);
 
 	__vmcs_writel(field, __vmcs_readl(field) & ~mask);
@@ -272,7 +278,7 @@ static __always_inline void vmcs_set_bits(unsigned long field, u32 mask)
 {
 	BUILD_BUG_ON_MSG(__builtin_constant_p(field) && ((field) & 0x6000) == 0x2000,
 			 "vmcs_set_bits does not support 64-bit fields");
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_write32(field, evmcs_read32(field) | mask);
 
 	__vmcs_writel(field, __vmcs_readl(field) | mask);
@@ -289,7 +295,7 @@ static inline void vmcs_load(struct vmcs *vmcs)
 {
 	u64 phys_addr = __pa(vmcs);
 
-	if (static_branch_unlikely(&enable_evmcs))
+	if (kvm_is_using_evmcs())
 		return evmcs_load(phys_addr);
 
 	vmx_asm1(vmptrld, "m"(phys_addr), vmcs, phys_addr);
@@ -306,13 +312,13 @@ static inline void __invvpid(unsigned long ext, u16 vpid, gva_t gva)
 	vmx_asm2(invvpid, "r"(ext), "m"(operand), ext, vpid, gva);
 }
 
-static inline void __invept(unsigned long ext, u64 eptp, gpa_t gpa)
+static inline void __invept(unsigned long ext, u64 eptp)
 {
 	struct {
-		u64 eptp, gpa;
-	} operand = {eptp, gpa};
-
-	vmx_asm2(invept, "r"(ext), "m"(operand), ext, eptp, gpa);
+		u64 eptp;
+		u64 reserved_0;
+	} operand = { eptp, 0 };
+	vmx_asm2(invept, "r"(ext), "m"(operand), ext, eptp);
 }
 
 static inline void vpid_sync_vcpu_single(int vpid)
@@ -349,13 +355,13 @@ static inline void vpid_sync_vcpu_addr(int vpid, gva_t addr)
 
 static inline void ept_sync_global(void)
 {
-	__invept(VMX_EPT_EXTENT_GLOBAL, 0, 0);
+	__invept(VMX_EPT_EXTENT_GLOBAL, 0);
 }
 
 static inline void ept_sync_context(u64 eptp)
 {
 	if (cpu_has_vmx_invept_context())
-		__invept(VMX_EPT_EXTENT_CONTEXT, eptp, 0);
+		__invept(VMX_EPT_EXTENT_CONTEXT, eptp);
 	else
 		ept_sync_global();
 }

@@ -7,7 +7,7 @@
 #include <linux/clk-provider.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
-#include <linux/of_device.h>
+#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 
 #include "clk-mtk.h"
@@ -15,41 +15,17 @@
 
 #include <dt-bindings/clock/mt2701-clk.h>
 
-#define GATE_AUDIO0(_id, _name, _parent, _shift) {	\
-		.id = _id,				\
-		.name = _name,				\
-		.parent_name = _parent,			\
-		.regs = &audio0_cg_regs,			\
-		.shift = _shift,			\
-		.ops = &mtk_clk_gate_ops_no_setclr,	\
-	}
+#define GATE_AUDIO0(_id, _name, _parent, _shift)		\
+	GATE_MTK(_id, _name, _parent, &audio0_cg_regs, _shift, &mtk_clk_gate_ops_no_setclr)
 
-#define GATE_AUDIO1(_id, _name, _parent, _shift) {	\
-		.id = _id,				\
-		.name = _name,				\
-		.parent_name = _parent,			\
-		.regs = &audio1_cg_regs,			\
-		.shift = _shift,			\
-		.ops = &mtk_clk_gate_ops_no_setclr,	\
-	}
+#define GATE_AUDIO1(_id, _name, _parent, _shift)		\
+	GATE_MTK(_id, _name, _parent, &audio1_cg_regs, _shift, &mtk_clk_gate_ops_no_setclr)
 
-#define GATE_AUDIO2(_id, _name, _parent, _shift) {	\
-		.id = _id,				\
-		.name = _name,				\
-		.parent_name = _parent,			\
-		.regs = &audio2_cg_regs,			\
-		.shift = _shift,			\
-		.ops = &mtk_clk_gate_ops_no_setclr,	\
-	}
+#define GATE_AUDIO2(_id, _name, _parent, _shift)		\
+	GATE_MTK(_id, _name, _parent, &audio2_cg_regs, _shift, &mtk_clk_gate_ops_no_setclr)
 
-#define GATE_AUDIO3(_id, _name, _parent, _shift) {	\
-		.id = _id,				\
-		.name = _name,				\
-		.parent_name = _parent,			\
-		.regs = &audio3_cg_regs,			\
-		.shift = _shift,			\
-		.ops = &mtk_clk_gate_ops_no_setclr,	\
-	}
+#define GATE_AUDIO3(_id, _name, _parent, _shift)		\
+	GATE_MTK(_id, _name, _parent, &audio3_cg_regs, _shift, &mtk_clk_gate_ops_no_setclr)
 
 static const struct mtk_gate_regs audio0_cg_regs = {
 	.set_ofs = 0x0,
@@ -148,6 +124,7 @@ static const struct of_device_id of_match_clk_mt2701_aud[] = {
 	{ .compatible = "mediatek,mt2701-audsys", .data = &audio_desc },
 	{ /* sentinel */ }
 };
+MODULE_DEVICE_TABLE(of, of_match_clk_mt2701_aud);
 
 static int clk_mt2701_aud_probe(struct platform_device *pdev)
 {
@@ -173,10 +150,10 @@ err_plat_populate:
 	return r;
 }
 
-static int clk_mt2701_aud_remove(struct platform_device *pdev)
+static void clk_mt2701_aud_remove(struct platform_device *pdev)
 {
 	of_platform_depopulate(&pdev->dev);
-	return mtk_clk_simple_remove(pdev);
+	mtk_clk_simple_remove(pdev);
 }
 
 static struct platform_driver clk_mt2701_aud_drv = {
@@ -187,5 +164,7 @@ static struct platform_driver clk_mt2701_aud_drv = {
 		.of_match_table = of_match_clk_mt2701_aud,
 	},
 };
+module_platform_driver(clk_mt2701_aud_drv);
 
-builtin_platform_driver(clk_mt2701_aud_drv);
+MODULE_DESCRIPTION("MediaTek MT2701 audio clocks driver");
+MODULE_LICENSE("GPL");

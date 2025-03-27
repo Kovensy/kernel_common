@@ -8,17 +8,27 @@
 
 # Main reviewers
 adelva@google.com
+gprocida@google.com
+isaacmanjarres@google.com
 joneslee@google.com
+jstultz@google.com
 maennich@google.com
 saravanak@google.com
+surenb@google.com
 vmartensson@google.com
 tkjos@google.com
 willdeacon@google.com
+willmcvicker@google.com
 
 # GKI Release Team
 howardsoc@google.com #{LAST_RESORT_SUGGESTION}
 szuweilin@google.com #{LAST_RESORT_SUGGESTION}
 
 # Backup
-sspatil@google.com #{LAST_RESORT_SUGGESTION}
+kiyoungkim@google.com #{LAST_RESORT_SUGGESTION}
 malchev@google.com #{LAST_RESORT_SUGGESTION}
+sspatil@google.com #{LAST_RESORT_SUGGESTION}
+
+# Give DrNo Exceptions to TEST_MAPPING or test xml configs
+per-file */TEST_MAPPING = *
+per-file */*.xml = *

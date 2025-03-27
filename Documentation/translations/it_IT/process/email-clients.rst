@@ -228,7 +228,7 @@ Mutt è molto personalizzabile. Qui di seguito trovate la configurazione minima
 per iniziare ad usare Mutt per inviare patch usando Gmail::
 
   # .muttrc
-  # ================  IMAP ====================
+  # ================  IMAP  ====================
   set imap_user = 'yourusername@gmail.com'
   set imap_pass = 'yourpassword'
   set spoolfile = imaps://imap.gmail.com/INBOX
@@ -364,3 +364,13 @@ un editor esterno.
 
 Un altro problema è che Gmail usa la codifica base64 per tutti quei messaggi
 che contengono caratteri non ASCII. Questo include cose tipo i nomi europei.
+
+HacKerMaiL (TUI)
+****************
+
+HacKerMaiL (hkml) è una semplice casella pubblica per la gestione dei messaggi
+di posta che non richiede alcuna sottoscrizione ad una lista di discussione.
+Viene sviluppato e mantenuto dal manutentore di DAMON e si pone come obiettivo
+quello di gestire il processo di sviluppo semplice come quello di DAMON e più in
+generale i sottosistemi del kernel. Per maggiori dettagli, fate riferimento al
+documento README (https://github.com/sjp38/hackermail/blob/master/README.md).

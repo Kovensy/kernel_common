@@ -70,11 +70,15 @@ int cpuidle_play_dead(void)
 	if (!drv)
 		return -ENODEV;
 
-	/* Find lowest-power state that supports long-term idle */
-	for (i = drv->state_count - 1; i >= 0; i--)
+	for (i = drv->state_count - 1; i >= 0; i--) {
 		if (drv->states[i].enter_dead)
-			return drv->states[i].enter_dead(dev, i);
+			drv->states[i].enter_dead(dev, i);
+	}
 
+	/*
+	 * If :enter_dead() is successful, it will never return, so reaching
+	 * here means that all of them failed above or were not present.
+	 */
 	return -ENODEV;
 }
 
@@ -146,7 +150,7 @@ static noinstr void enter_s2idle_proper(struct cpuidle_driver *drv,
 
 	instrumentation_begin();
 
-	time_start = ns_to_ktime(local_clock());
+	time_start = ns_to_ktime(local_clock_noinstr());
 
 	tick_freeze();
 	/*
@@ -170,7 +174,7 @@ static noinstr void enter_s2idle_proper(struct cpuidle_driver *drv,
 	tick_unfreeze();
 	start_critical_timings();
 
-	time_end = ns_to_ktime(local_clock());
+	time_end = ns_to_ktime(local_clock_noinstr());
 
 	dev->states_usage[index].s2idle_time += ktime_us_delta(time_end, time_start);
 	dev->states_usage[index].s2idle_usage++;
@@ -240,22 +244,19 @@ noinstr int cpuidle_enter_state(struct cpuidle_device *dev,
 	if (broadcast && tick_broadcast_enter()) {
 		index = find_deepest_state(drv, dev, target_state->exit_latency_ns,
 					   CPUIDLE_FLAG_TIMER_STOP, false);
-		if (index < 0) {
-			default_idle_call();
-			return -EBUSY;
-		}
+
 		target_state = &drv->states[index];
 		broadcast = false;
 	}
 
 	if (target_state->flags & CPUIDLE_FLAG_TLB_FLUSHED)
-		leave_mm(dev->cpu);
+		leave_mm();
 
 	/* Take note of the planned idle state. */
 	sched_idle_set_state(target_state);
 
 	trace_cpu_idle(index, dev->cpu);
-	time_start = ns_to_ktime(local_clock());
+	time_start = ns_to_ktime(local_clock_noinstr());
 
 	stop_critical_timings();
 	if (!(target_state->flags & CPUIDLE_FLAG_RCU_IDLE)) {
@@ -288,7 +289,7 @@ noinstr int cpuidle_enter_state(struct cpuidle_device *dev,
 	start_critical_timings();
 
 	sched_clock_idle_wakeup_event();
-	time_end = ns_to_ktime(local_clock());
+	time_end = ns_to_ktime(local_clock_noinstr());
 	trace_cpu_idle(PWR_EVENT_EXIT, dev->cpu);
 	trace_android_vh_cpu_idle_exit(entered_state, dev);
 
@@ -422,7 +423,7 @@ void cpuidle_reflect(struct cpuidle_device *dev, int index)
  * Min polling interval of 10usec is a guess. It is assuming that
  * for most users, the time for a single ping-pong workload like
  * perf bench pipe would generally complete within 10usec but
- * this is hardware dependant. Actual time can be estimated with
+ * this is hardware dependent. Actual time can be estimated with
  *
  * perf bench sched pipe -l 10000
  *
@@ -821,7 +822,7 @@ static int __init cpuidle_init(void)
 	if (cpuidle_disabled())
 		return -ENODEV;
 
-	return cpuidle_add_interface(cpu_subsys.dev_root);
+	return cpuidle_add_interface();
 }
 
 module_param(off, int, 0444);

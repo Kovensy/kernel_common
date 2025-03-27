@@ -34,28 +34,9 @@ static struct attribute_group iommu_pmu_events_attr_group = {
 	.attrs = attrs_empty,
 };
 
-static cpumask_t iommu_pmu_cpu_mask;
-
-static ssize_t
-cpumask_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return cpumap_print_to_pagebuf(true, buf, &iommu_pmu_cpu_mask);
-}
-static DEVICE_ATTR_RO(cpumask);
-
-static struct attribute *iommu_pmu_cpumask_attrs[] = {
-	&dev_attr_cpumask.attr,
-	NULL
-};
-
-static struct attribute_group iommu_pmu_cpumask_attr_group = {
-	.attrs = iommu_pmu_cpumask_attrs,
-};
-
 static const struct attribute_group *iommu_pmu_attr_groups[] = {
 	&iommu_pmu_format_attr_group,
 	&iommu_pmu_events_attr_group,
-	&iommu_pmu_cpumask_attr_group,
 	NULL
 };
 
@@ -438,7 +419,7 @@ static int iommu_pmu_assign_event(struct iommu_pmu *iommu_pmu,
 	iommu_pmu_set_filter(domain, event->attr.config1,
 			     IOMMU_PMU_FILTER_DOMAIN, idx,
 			     event->attr.config1);
-	iommu_pmu_set_filter(pasid, event->attr.config1,
+	iommu_pmu_set_filter(pasid, event->attr.config2,
 			     IOMMU_PMU_FILTER_PASID, idx,
 			     event->attr.config1);
 	iommu_pmu_set_filter(ats, event->attr.config2,
@@ -565,6 +546,7 @@ static int __iommu_pmu_register(struct intel_iommu *iommu)
 	iommu_pmu->pmu.attr_groups	= iommu_pmu_attr_groups;
 	iommu_pmu->pmu.attr_update	= iommu_pmu_attr_update;
 	iommu_pmu->pmu.capabilities	= PERF_PMU_CAP_NO_EXCLUDE;
+	iommu_pmu->pmu.scope		= PERF_PMU_SCOPE_SYS_WIDE;
 	iommu_pmu->pmu.module		= THIS_MODULE;
 
 	return perf_pmu_register(&iommu_pmu->pmu, iommu_pmu->pmu.name, -1);
@@ -773,69 +755,6 @@ static void iommu_pmu_unset_interrupt(struct intel_iommu *iommu)
 	iommu->perf_irq = 0;
 }
 
-static int iommu_pmu_cpu_online(unsigned int cpu)
-{
-	if (cpumask_empty(&iommu_pmu_cpu_mask))
-		cpumask_set_cpu(cpu, &iommu_pmu_cpu_mask);
-
-	return 0;
-}
-
-static int iommu_pmu_cpu_offline(unsigned int cpu)
-{
-	struct dmar_drhd_unit *drhd;
-	struct intel_iommu *iommu;
-	int target;
-
-	if (!cpumask_test_and_clear_cpu(cpu, &iommu_pmu_cpu_mask))
-		return 0;
-
-	target = cpumask_any_but(cpu_online_mask, cpu);
-
-	if (target < nr_cpu_ids)
-		cpumask_set_cpu(target, &iommu_pmu_cpu_mask);
-	else
-		target = -1;
-
-	rcu_read_lock();
-
-	for_each_iommu(iommu, drhd) {
-		if (!iommu->pmu)
-			continue;
-		perf_pmu_migrate_context(&iommu->pmu->pmu, cpu, target);
-	}
-	rcu_read_unlock();
-
-	return 0;
-}
-
-static int nr_iommu_pmu;
-
-static int iommu_pmu_cpuhp_setup(struct iommu_pmu *iommu_pmu)
-{
-	int ret;
-
-	if (nr_iommu_pmu++)
-		return 0;
-
-	ret = cpuhp_setup_state(CPUHP_AP_PERF_X86_IOMMU_PERF_ONLINE,
-				"driver/iommu/intel/perfmon:online",
-				iommu_pmu_cpu_online,
-				iommu_pmu_cpu_offline);
-	if (ret)
-		nr_iommu_pmu = 0;
-
-	return ret;
-}
-
-static void iommu_pmu_cpuhp_free(struct iommu_pmu *iommu_pmu)
-{
-	if (--nr_iommu_pmu)
-		return;
-
-	cpuhp_remove_state(CPUHP_AP_PERF_X86_IOMMU_PERF_ONLINE);
-}
-
 void iommu_pmu_register(struct intel_iommu *iommu)
 {
 	struct iommu_pmu *iommu_pmu = iommu->pmu;
@@ -846,17 +765,12 @@ void iommu_pmu_register(struct intel_iommu *iommu)
 	if (__iommu_pmu_register(iommu))
 		goto err;
 
-	if (iommu_pmu_cpuhp_setup(iommu_pmu))
-		goto unregister;
-
 	/* Set interrupt for overflow */
 	if (iommu_pmu_set_interrupt(iommu))
-		goto cpuhp_free;
+		goto unregister;
 
 	return;
 
-cpuhp_free:
-	iommu_pmu_cpuhp_free(iommu_pmu);
 unregister:
 	perf_pmu_unregister(&iommu_pmu->pmu);
 err:
@@ -872,6 +786,5 @@ void iommu_pmu_unregister(struct intel_iommu *iommu)
 		return;
 
 	iommu_pmu_unset_interrupt(iommu);
-	iommu_pmu_cpuhp_free(iommu_pmu);
 	perf_pmu_unregister(&iommu_pmu->pmu);
 }

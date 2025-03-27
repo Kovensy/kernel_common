@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Simple Power-Managed Bus Driver
  *
@@ -10,6 +11,8 @@
 
 #include <linux/clk.h>
 #include <linux/module.h>
+#include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/pm_runtime.h>
@@ -71,17 +74,16 @@ static int simple_pm_bus_probe(struct platform_device *pdev)
 	return 0;
 }
 
-static int simple_pm_bus_remove(struct platform_device *pdev)
+static void simple_pm_bus_remove(struct platform_device *pdev)
 {
 	const void *data = of_device_get_match_data(&pdev->dev);
 
 	if (pdev->driver_override || data)
-		return 0;
+		return;
 
 	dev_dbg(&pdev->dev, "%s\n", __func__);
 
 	pm_runtime_disable(&pdev->dev);
-	return 0;
 }
 
 static int simple_pm_bus_runtime_suspend(struct device *dev)
@@ -138,4 +140,3 @@ module_platform_driver(simple_pm_bus_driver);
 
 MODULE_DESCRIPTION("Simple Power-Managed Bus Driver");
 MODULE_AUTHOR("Geert Uytterhoeven <geert+renesas@glider.be>");
-MODULE_LICENSE("GPL v2");

@@ -9,8 +9,7 @@
 #include <linux/io.h>
 #include <linux/notifier.h>
 #include <linux/mfd/syscon.h>
-#include <linux/of_address.h>
-#include <linux/of_device.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <linux/regmap.h>
@@ -62,7 +61,8 @@ static int syscon_reboot_probe(struct platform_device *pdev)
 		priority = 192;
 
 	if (of_property_read_u32(pdev->dev.of_node, "offset", &ctx->offset))
-		return -EINVAL;
+		if (of_property_read_u32(pdev->dev.of_node, "reg", &ctx->offset))
+			return -EINVAL;
 
 	value_err = of_property_read_u32(pdev->dev.of_node, "value", &ctx->value);
 	mask_err = of_property_read_u32(pdev->dev.of_node, "mask", &ctx->mask);

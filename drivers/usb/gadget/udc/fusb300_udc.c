@@ -1297,7 +1297,7 @@ static void init_controller(struct fusb300 *fusb300)
 	reg |= val;
 	iowrite32(reg, fusb300->reg + FUSB300_OFFSET_HSCR);
 
-	/*set u1 u2 timmer*/
+	/*set u1 u2 timer*/
 	fusb300_set_u2_timeout(fusb300, 0xff);
 	fusb300_set_u1_timeout(fusb300, 0xff);
 
@@ -1338,7 +1338,7 @@ static const struct usb_gadget_ops fusb300_gadget_ops = {
 	.udc_stop	= fusb300_udc_stop,
 };
 
-static int fusb300_remove(struct platform_device *pdev)
+static void fusb300_remove(struct platform_device *pdev)
 {
 	struct fusb300 *fusb300 = platform_get_drvdata(pdev);
 	int i;
@@ -1352,8 +1352,6 @@ static int fusb300_remove(struct platform_device *pdev)
 	for (i = 0; i < FUSB300_MAX_NUM_EP; i++)
 		kfree(fusb300->ep[i]);
 	kfree(fusb300);
-
-	return 0;
 }
 
 static int fusb300_probe(struct platform_device *pdev)
@@ -1508,10 +1506,11 @@ clean_up:
 }
 
 static struct platform_driver fusb300_driver = {
-	.remove =	fusb300_remove,
-	.driver		= {
+	.probe = fusb300_probe,
+	.remove = fusb300_remove,
+	.driver = {
 		.name =	udc_name,
 	},
 };
 
-module_platform_driver_probe(fusb300_driver, fusb300_probe);
+module_platform_driver(fusb300_driver);

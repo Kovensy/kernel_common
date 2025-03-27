@@ -111,7 +111,7 @@ static struct i2c_driver st_magn_driver = {
 		.name = "st-magn-i2c",
 		.of_match_table = st_magn_of_match,
 	},
-	.probe_new = st_magn_i2c_probe,
+	.probe = st_magn_i2c_probe,
 	.id_table = st_magn_id_table,
 };
 module_i2c_driver(st_magn_driver);
@@ -119,4 +119,4 @@ module_i2c_driver(st_magn_driver);
 MODULE_AUTHOR("Denis Ciocca <denis.ciocca@st.com>");
 MODULE_DESCRIPTION("STMicroelectronics magnetometers i2c driver");
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(IIO_ST_SENSORS);
+MODULE_IMPORT_NS("IIO_ST_SENSORS");

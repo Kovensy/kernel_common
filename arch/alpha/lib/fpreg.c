@@ -8,7 +8,9 @@
 #include <linux/compiler.h>
 #include <linux/export.h>
 #include <linux/preempt.h>
+#include <asm/fpu.h>
 #include <asm/thread_info.h>
+#include <asm/fpu.h>
 
 #if defined(CONFIG_ALPHA_EV6) || defined(CONFIG_ALPHA_EV67)
 #define STT(reg,val)  asm volatile ("ftoit $f"#reg",%0" : "=r"(val));
@@ -23,7 +25,7 @@ alpha_read_fp_reg (unsigned long reg)
 
 	if (unlikely(reg >= 32))
 		return 0;
-	preempt_enable();
+	preempt_disable();
 	if (current_thread_info()->status & TS_SAVED_FP)
 		val = current_thread_info()->fp[reg];
 	else switch (reg) {
@@ -133,7 +135,7 @@ alpha_read_fp_reg_s (unsigned long reg)
 	if (unlikely(reg >= 32))
 		return 0;
 
-	preempt_enable();
+	preempt_disable();
 	if (current_thread_info()->status & TS_SAVED_FP) {
 		LDT(0, current_thread_info()->fp[reg]);
 		STS(0, val);

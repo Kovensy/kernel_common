@@ -15,6 +15,7 @@ struct perf_tool;
 struct thread;
 struct tep_plugin_list;
 struct evsel;
+struct tep_format_field;
 
 struct trace_event {
 	struct tep_handle	*pevent;
@@ -41,15 +42,14 @@ struct tep_event *trace_event__tp_format_id(int id);
 void event_format__fprintf(struct tep_event *event,
 			   int cpu, void *data, int size, FILE *fp);
 
-void event_format__print(struct tep_event *event,
-			 int cpu, void *data, int size);
-
 int parse_ftrace_file(struct tep_handle *pevent, char *buf, unsigned long size);
 int parse_event_file(struct tep_handle *pevent,
 		     char *buf, unsigned long size, char *sys);
 
 unsigned long long
 raw_field_value(struct tep_event *event, const char *name, void *data);
+
+const char *parse_task_states(struct tep_format_field *state_field);
 
 void parse_proc_kallsyms(struct tep_handle *pevent, char *file, unsigned int size);
 void parse_ftrace_printk(struct tep_handle *pevent, char *file, unsigned int size);
@@ -61,6 +61,12 @@ unsigned long long read_size(struct tep_event *event, void *ptr, int size);
 unsigned long long eval_flag(const char *flag);
 
 int read_tracing_data(int fd, struct list_head *pattrs);
+
+/*
+ * Return the tracepoint name in the format "subsystem:event_name",
+ * callers should free the returned string.
+ */
+char *tracepoint_id_to_name(u64 config);
 
 struct tracing_data {
 	/* size is only valid if temp is 'true' */
@@ -141,7 +147,7 @@ int common_lock_depth(struct scripting_context *context);
 int perf_sample__sprintf_flags(u32 flags, char *str, size_t sz);
 
 #if defined(LIBTRACEEVENT_VERSION) &&  LIBTRACEEVENT_VERSION >= MAKE_LIBTRACEEVENT_VERSION(1, 5, 0)
-#include <traceevent/event-parse.h>
+#include <event-parse.h>
 
 static inline bool tep_field_is_relative(unsigned long flags)
 {

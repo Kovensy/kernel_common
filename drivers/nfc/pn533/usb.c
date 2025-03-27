@@ -175,6 +175,7 @@ static int pn533_usb_send_frame(struct pn533 *dev,
 	print_hex_dump_debug("PN533 TX: ", DUMP_PREFIX_NONE, 16, 1,
 			     out->data, out->len, false);
 
+	arg.phy = phy;
 	init_completion(&arg.done);
 	cntx = phy->out_urb->context;
 	phy->out_urb->context = &arg;
@@ -253,7 +254,6 @@ struct pn533_acr122_ccid_hdr {
 	 * byte for reposnse msg
 	 */
 	u8 params[3];
-	u8 data[]; /* payload */
 } __packed;
 
 struct pn533_acr122_apdu_hdr {

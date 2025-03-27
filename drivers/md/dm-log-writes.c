@@ -429,7 +429,7 @@ static inline sector_t logdev_last_sector(struct log_writes_c *lc)
 
 static int log_writes_kthread(void *arg)
 {
-	struct log_writes_c *lc = (struct log_writes_c *)arg;
+	struct log_writes_c *lc = arg;
 	sector_t sector = 0;
 
 	while (!kthread_should_stop()) {
@@ -871,7 +871,7 @@ static void log_writes_io_hints(struct dm_target *ti, struct queue_limits *limit
 	if (!bdev_max_discard_sectors(lc->dev->bdev)) {
 		lc->device_supports_discard = false;
 		limits->discard_granularity = lc->sectorsize;
-		limits->max_discard_sectors = (UINT_MAX >> SECTOR_SHIFT);
+		limits->max_hw_discard_sectors = (UINT_MAX >> SECTOR_SHIFT);
 	}
 	limits->logical_block_size = bdev_logical_block_size(lc->dev->bdev);
 	limits->physical_block_size = bdev_physical_block_size(lc->dev->bdev);
@@ -937,24 +937,7 @@ static struct target_type log_writes_target = {
 	.dax_zero_page_range = log_writes_dax_zero_page_range,
 	.dax_recovery_write = log_writes_dax_recovery_write,
 };
-
-static int __init dm_log_writes_init(void)
-{
-	int r = dm_register_target(&log_writes_target);
-
-	if (r < 0)
-		DMERR("register failed %d", r);
-
-	return r;
-}
-
-static void __exit dm_log_writes_exit(void)
-{
-	dm_unregister_target(&log_writes_target);
-}
-
-module_init(dm_log_writes_init);
-module_exit(dm_log_writes_exit);
+module_dm(log_writes);
 
 MODULE_DESCRIPTION(DM_NAME " log writes target");
 MODULE_AUTHOR("Josef Bacik <jbacik@fb.com>");

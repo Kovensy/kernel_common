@@ -95,6 +95,7 @@ static int fotg210_gemini_init(struct fotg210 *fotg, struct resource *res,
 
 /**
  * fotg210_vbus() - Called by gadget driver to enable/disable VBUS
+ * @fotg: pointer to a private fotg210 object
  * @enable: true to enable VBUS, false to disable VBUS
  */
 void fotg210_vbus(struct fotg210 *fotg, bool enable)
@@ -165,7 +166,7 @@ static int fotg210_probe(struct platform_device *pdev)
 	return ret;
 }
 
-static int fotg210_remove(struct platform_device *pdev)
+static void fotg210_remove(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	enum usb_dr_mode mode;
@@ -176,8 +177,6 @@ static int fotg210_remove(struct platform_device *pdev)
 		fotg210_udc_remove(pdev);
 	else
 		fotg210_hcd_remove(pdev);
-
-	return 0;
 }
 
 #ifdef CONFIG_OF

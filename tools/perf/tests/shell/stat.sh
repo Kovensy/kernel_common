@@ -28,6 +28,18 @@ test_stat_record_report() {
   echo "stat record and report test [Success]"
 }
 
+test_stat_record_script() {
+  echo "stat record and script test"
+  if ! perf stat record -o - true | perf script -i - 2>&1 | \
+    grep -E -q "CPU[[:space:]]+THREAD[[:space:]]+VAL[[:space:]]+ENA[[:space:]]+RUN[[:space:]]+TIME[[:space:]]+EVENT"
+  then
+    echo "stat record and script test [Failed]"
+    err=1
+    return
+  fi
+  echo "stat record and script test [Success]"
+}
+
 test_stat_repeat_weak_groups() {
   echo "stat repeat weak groups test"
   if ! perf stat -e '{cycles,cycles,cycles,cycles,cycles,cycles,cycles,cycles,cycles,cycles}' \
@@ -61,9 +73,33 @@ test_topdown_groups() {
     err=1
     return
   fi
-  if perf stat -e '{topdown-retiring,slots}' true 2>&1 | grep -E -q "<not supported>"
+  if perf stat -e 'instructions,topdown-retiring,slots' true 2>&1 | grep -E -q "<not supported>"
   then
-    echo "Topdown event group test [Failed slots not reordered first]"
+    echo "Topdown event group test [Failed slots not reordered first in no-group case]"
+    err=1
+    return
+  fi
+  if perf stat -e '{instructions,topdown-retiring,slots}' true 2>&1 | grep -E -q "<not supported>"
+  then
+    echo "Topdown event group test [Failed slots not reordered first in single group case]"
+    err=1
+    return
+  fi
+  if perf stat -e '{instructions,slots},topdown-retiring' true 2>&1 | grep -E -q "<not supported>"
+  then
+    echo "Topdown event group test [Failed topdown metrics event not move into slots group]"
+    err=1
+    return
+  fi
+  if perf stat -e '{instructions,slots},{topdown-retiring}' true 2>&1 | grep -E -q "<not supported>"
+  then
+    echo "Topdown event group test [Failed topdown metrics group not merge into slots group]"
+    err=1
+    return
+  fi
+  if perf stat -e '{instructions,r400,r8000}' true 2>&1 | grep -E -q "<not supported>"
+  then
+    echo "Topdown event group test [Failed raw format slots not reordered first]"
     err=1
     return
   fi
@@ -91,9 +127,81 @@ test_topdown_weak_groups() {
   echo "Topdown weak groups test [Success]"
 }
 
+test_cputype() {
+  # Test --cputype argument.
+  echo "cputype test"
+
+  # Bogus PMU should fail.
+  if perf stat --cputype="123" -e instructions true > /dev/null 2>&1
+  then
+    echo "cputype test [Bogus PMU didn't fail]"
+    err=1
+    return
+  fi
+
+  # Find a known PMU for cputype.
+  pmu=""
+  devs="/sys/bus/event_source/devices"
+  for i in $devs/cpu $devs/cpu_atom $devs/armv8_pmuv3_0 $devs/armv8_cortex_*
+  do
+    i_base=$(basename "$i")
+    if test -d "$i"
+    then
+      pmu="$i_base"
+      break
+    fi
+    if perf stat -e "$i_base/instructions/" true > /dev/null 2>&1
+    then
+      pmu="$i_base"
+      break
+    fi
+  done
+  if test "x$pmu" = "x"
+  then
+    echo "cputype test [Skipped known PMU not found]"
+    return
+  fi
+
+  # Test running with cputype produces output.
+  if ! perf stat --cputype="$pmu" -e instructions true 2>&1 | grep -E -q "instructions"
+  then
+    echo "cputype test [Failed count missed with given filter]"
+    err=1
+    return
+  fi
+  echo "cputype test [Success]"
+}
+
+test_hybrid() {
+  # Test the default stat command on hybrid devices opens one cycles event for
+  # each CPU type.
+  echo "hybrid test"
+
+  # Count the number of core PMUs, assume minimum of 1
+  pmus=$(ls /sys/bus/event_source/devices/*/cpus 2>/dev/null | wc -l)
+  if [ "$pmus" -lt 1 ]
+  then
+    pmus=1
+  fi
+
+  # Run default Perf stat
+  cycles_events=$(perf stat -- true 2>&1 | grep -E "/cycles/[uH]*|  cycles[:uH]*  " -c)
+
+  if [ "$pmus" -ne "$cycles_events" ]
+  then
+    echo "hybrid test [Found $pmus PMUs but $cycles_events cycles events. Failed]"
+    err=1
+    return
+  fi
+  echo "hybrid test [Success]"
+}
+
 test_default_stat
 test_stat_record_report
+test_stat_record_script
 test_stat_repeat_weak_groups
 test_topdown_groups
 test_topdown_weak_groups
+test_cputype
+test_hybrid
 exit $err

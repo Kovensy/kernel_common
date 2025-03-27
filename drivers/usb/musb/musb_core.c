@@ -1387,7 +1387,7 @@ fifo_setup(struct musb *musb, struct musb_hw_ep  *hw_ep,
 
 	/* expect hw_ep has already been zero-initialized */
 
-	size = ffs(max(maxpacket, (u16) 8)) - 1;
+	size = ffs(max_t(u16, maxpacket, 8)) - 1;
 	maxpacket = 1 << size;
 
 	c_size = size - 3;
@@ -2330,7 +2330,6 @@ musb_init_controller(struct device *dev, int nIrq, void __iomem *ctrl)
 
 	spin_lock_init(&musb->lock);
 	spin_lock_init(&musb->list_lock);
-	musb->board_set_power = plat->set_power;
 	musb->min_power = plat->min_power;
 	musb->ops = plat->platform_ops;
 	musb->port_mode = plat->mode;
@@ -2611,8 +2610,8 @@ static int musb_probe(struct platform_device *pdev)
 	int		irq = platform_get_irq_byname(pdev, "mc");
 	void __iomem	*base;
 
-	if (irq <= 0)
-		return -ENODEV;
+	if (irq < 0)
+		return irq;
 
 	base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(base))
@@ -2621,7 +2620,7 @@ static int musb_probe(struct platform_device *pdev)
 	return musb_init_controller(dev, irq, base);
 }
 
-static int musb_remove(struct platform_device *pdev)
+static void musb_remove(struct platform_device *pdev)
 {
 	struct device	*dev = &pdev->dev;
 	struct musb	*musb = dev_to_musb(dev);
@@ -2657,7 +2656,6 @@ static int musb_remove(struct platform_device *pdev)
 	usb_phy_shutdown(musb->xceiv);
 	musb_free(musb);
 	device_init_wakeup(dev, 0);
-	return 0;
 }
 
 #ifdef	CONFIG_PM

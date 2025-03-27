@@ -115,7 +115,7 @@ static struct i2c_driver ad5686_i2c_driver = {
 		.name = "ad5696",
 		.of_match_table = ad5686_of_match,
 	},
-	.probe_new = ad5686_i2c_probe,
+	.probe = ad5686_i2c_probe,
 	.remove = ad5686_i2c_remove,
 	.id_table = ad5686_i2c_id,
 };
@@ -125,4 +125,4 @@ module_i2c_driver(ad5686_i2c_driver);
 MODULE_AUTHOR("Stefan Popa <stefan.popa@analog.com>");
 MODULE_DESCRIPTION("Analog Devices AD5686 and similar multi-channel DACs");
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(IIO_AD5686);
+MODULE_IMPORT_NS("IIO_AD5686");

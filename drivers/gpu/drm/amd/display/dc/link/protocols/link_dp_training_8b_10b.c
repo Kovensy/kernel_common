@@ -157,6 +157,7 @@ enum link_training_result perform_8b_10b_clock_recovery_sequence(
 	struct link_training_settings *lt_settings,
 	uint32_t offset)
 {
+	enum dc_status status;
 	uint32_t retries_cr;
 	uint32_t retry_count;
 	uint32_t wait_time_microsec;
@@ -216,7 +217,7 @@ enum link_training_result perform_8b_10b_clock_recovery_sequence(
 		/* 4. Read lane status and requested drive
 		* settings as set by the sink
 		*/
-		dp_get_lane_status_and_lane_adjust(
+		status = dp_get_lane_status_and_lane_adjust(
 				link,
 				lt_settings,
 				dpcd_lane_status,
@@ -224,9 +225,14 @@ enum link_training_result perform_8b_10b_clock_recovery_sequence(
 				dpcd_lane_adjust,
 				offset);
 
+		if (dp_check_dpcd_reqeust_status(link, status))
+			return LINK_TRAINING_ABORT;
+
 		/* 5. check CR done*/
-		if (dp_is_cr_done(lane_count, dpcd_lane_status))
+		if (dp_is_cr_done(lane_count, dpcd_lane_status)) {
+			DC_LOG_HW_LINK_TRAINING("%s: Clock recovery OK\n", __func__);
 			return LINK_TRAINING_SUCCESS;
+		}
 
 		/* 6. max VS reached*/
 		if ((link_dp_get_encoding_format(&lt_settings->link_settings) ==
@@ -271,6 +277,7 @@ enum link_training_result perform_8b_10b_channel_equalization_sequence(
 	struct link_training_settings *lt_settings,
 	uint32_t offset)
 {
+	enum dc_status status;
 	enum dc_dp_training_pattern tr_pattern;
 	uint32_t retries_ch_eq;
 	uint32_t wait_time_microsec;
@@ -306,12 +313,7 @@ enum link_training_result perform_8b_10b_channel_equalization_sequence(
 			dpcd_set_lane_settings(link, lt_settings, offset);
 
 		/* 3. wait for receiver to lock-on*/
-		wait_time_microsec = lt_settings->eq_pattern_time;
-
-		if (is_repeater(lt_settings, offset))
-			wait_time_microsec =
-					dp_translate_training_aux_read_interval(
-						link->dpcd_caps.lttpr_caps.aux_rd_interval[offset - 1]);
+		wait_time_microsec = dp_get_eq_aux_rd_interval(link, lt_settings, offset, retries_ch_eq);
 
 		dp_wait_for_training_aux_rd_interval(
 				link,
@@ -320,13 +322,16 @@ enum link_training_result perform_8b_10b_channel_equalization_sequence(
 		/* 4. Read lane status and requested
 		 * drive settings as set by the sink*/
 
-		dp_get_lane_status_and_lane_adjust(
+		status = dp_get_lane_status_and_lane_adjust(
 			link,
 			lt_settings,
 			dpcd_lane_status,
 			&dpcd_lane_status_updated,
 			dpcd_lane_adjust,
 			offset);
+
+		if (dp_check_dpcd_reqeust_status(link, status))
+			return LINK_TRAINING_ABORT;
 
 		/* 5. check CR done*/
 		if (!dp_is_cr_done(lane_count, dpcd_lane_status))
@@ -337,7 +342,7 @@ enum link_training_result perform_8b_10b_channel_equalization_sequence(
 		/* 6. check CHEQ done*/
 		if (dp_is_ch_eq_done(lane_count, dpcd_lane_status) &&
 				dp_is_symbol_locked(lane_count, dpcd_lane_status) &&
-				dp_is_interlane_aligned(dpcd_lane_status_updated))
+				dp_check_interlane_aligned(dpcd_lane_status_updated, link, retries_ch_eq))
 			return LINK_TRAINING_SUCCESS;
 
 		/* 7. update VS/PE/PC2 in lt_settings*/
@@ -386,6 +391,8 @@ enum link_training_result dp_perform_8b_10b_link_training(
 					link_res,
 					lt_settings,
 					repeater_id);
+			if (status == LINK_TRAINING_SUCCESS)
+				DC_LOG_HW_LINK_TRAINING("%s: Channel EQ done.\n", __func__);
 
 			repeater_training_done(link, repeater_id);
 
@@ -407,6 +414,8 @@ enum link_training_result dp_perform_8b_10b_link_training(
 					link_res,
 					lt_settings,
 					DPRX);
+			if (status == LINK_TRAINING_SUCCESS)
+				DC_LOG_HW_LINK_TRAINING("%s: Channel EQ done.\n", __func__);
 		}
 	}
 

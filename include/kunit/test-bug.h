@@ -9,10 +9,13 @@
 #ifndef _KUNIT_TEST_BUG_H
 #define _KUNIT_TEST_BUG_H
 
+#include <linux/stddef.h> /* for NULL */
+
 #if IS_ENABLED(CONFIG_KUNIT)
 
 #include <linux/jump_label.h> /* For static branch */
 #include <linux/sched.h>
+#include <linux/android_kabi.h>
 
 /* Static key if KUnit is running any tests. */
 DECLARE_STATIC_KEY_FALSE(kunit_running);
@@ -21,6 +24,8 @@ DECLARE_STATIC_KEY_FALSE(kunit_running);
 extern struct kunit_hooks_table {
 	__printf(3, 4) void (*fail_current_test)(const char*, int, const char*, ...);
 	void *(*get_static_stub_address)(struct kunit *test, void *real_fn_addr);
+
+	ANDROID_KABI_RESERVE(1);
 } kunit_hooks;
 
 /**

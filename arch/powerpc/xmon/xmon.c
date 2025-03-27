@@ -50,7 +50,7 @@
 #include <asm/xive.h>
 #include <asm/opal.h>
 #include <asm/firmware.h>
-#include <asm/code-patching.h>
+#include <asm/text-patching.h>
 #include <asm/sections.h>
 #include <asm/inst.h>
 #include <asm/interrupt.h>
@@ -58,6 +58,7 @@
 #ifdef CONFIG_PPC64
 #include <asm/hvcall.h>
 #include <asm/paca.h>
+#include <asm/lppaca.h>
 #endif
 
 #include "nonstdio.h"
@@ -88,7 +89,7 @@ static unsigned long ndump = 64;
 static unsigned long nidump = 16;
 static unsigned long ncsum = 4096;
 static int termch;
-static char tmpstr[128];
+static char tmpstr[KSYM_NAME_LEN];
 static int tracing_enabled;
 
 static long bus_error_jmp[JMP_BUF_LEN];
@@ -642,10 +643,8 @@ static int xmon_core(struct pt_regs *regs, volatile int fromipi)
 			touch_nmi_watchdog();
 		} else {
 			cmd = 1;
-#ifdef CONFIG_SMP
 			if (xmon_batch)
 				cmd = batch_cmds(regs);
-#endif
 			if (!locked_down && cmd)
 				cmd = cmds(regs);
 			if (locked_down || cmd != 0) {
@@ -1084,7 +1083,7 @@ cmds(struct pt_regs *excp)
 				memzcan();
 				break;
 			case 'i':
-				show_mem(0, NULL);
+				show_mem();
 				break;
 			default:
 				termch = cmd;
@@ -1275,7 +1274,7 @@ static int xmon_batch_next_cpu(void)
 	while (!cpumask_empty(&xmon_batch_cpus)) {
 		cpu = cpumask_next_wrap(smp_processor_id(), &xmon_batch_cpus,
 					xmon_batch_start_cpu, true);
-		if (cpu == nr_cpumask_bits)
+		if (cpu >= nr_cpu_ids)
 			break;
 		if (xmon_batch_start_cpu == -1)
 			xmon_batch_start_cpu = cpu;
@@ -1351,7 +1350,7 @@ static int cpu_cmd(void)
 	}
 	termch = cpu;
 
-	if (!scanhex(&cpu)) {
+	if (!scanhex(&cpu) || cpu >= num_possible_cpus()) {
 		/* print cpus waiting or in xmon */
 		printf("cpus stopped:");
 		last_cpu = first_cpu = NR_CPUS;
@@ -1819,8 +1818,8 @@ static void print_bug_trap(struct pt_regs *regs)
 	const struct bug_entry *bug;
 	unsigned long addr;
 
-	if (regs->msr & MSR_PR)
-		return;		/* not in kernel */
+	if (user_mode(regs))
+		return;
 	addr = regs->nip;	/* address of trap instruction */
 	if (!is_kernel_addr(addr))
 		return;
@@ -2634,7 +2633,9 @@ static void dump_one_paca(int cpu)
 
 	DUMP(p, lock_token, "%#-*x");
 	DUMP(p, paca_index, "%#-*x");
+#ifndef CONFIG_PPC_KERNEL_PCREL
 	DUMP(p, kernel_toc, "%#-*llx");
+#endif
 	DUMP(p, kernelbase, "%#-*llx");
 	DUMP(p, kernel_msr, "%#-*llx");
 	DUMP(p, emergency_sp, "%-*px");
@@ -2771,7 +2772,7 @@ static void dump_pacas(void)
 
 	termch = c;	/* Put c back, it wasn't 'a' */
 
-	if (scanhex(&num))
+	if (scanhex(&num) && num < num_possible_cpus())
 		dump_one_paca(num);
 	else
 		dump_one_paca(xmon_owner);
@@ -2844,7 +2845,7 @@ static void dump_xives(void)
 
 	termch = c;	/* Put c back, it wasn't 'a' */
 
-	if (scanhex(&num))
+	if (scanhex(&num) && num < num_possible_cpus())
 		dump_one_xive(num);
 	else
 		dump_one_xive(xmon_owner);
@@ -3301,7 +3302,7 @@ static void show_pte(unsigned long addr)
 {
 	unsigned long tskv = 0;
 	struct task_struct *volatile tsk = NULL;
-	struct mm_struct *mm;
+	struct mm_struct *volatile mm;
 	pgd_t *pgdp;
 	p4d_t *p4dp;
 	pud_t *pudp;
@@ -3339,7 +3340,7 @@ static void show_pte(unsigned long addr)
 		return;
 	}
 
-	if (p4d_is_leaf(*p4dp)) {
+	if (p4d_leaf(*p4dp)) {
 		format_pte(p4dp, p4d_val(*p4dp));
 		return;
 	}
@@ -3353,7 +3354,7 @@ static void show_pte(unsigned long addr)
 		return;
 	}
 
-	if (pud_is_leaf(*pudp)) {
+	if (pud_leaf(*pudp)) {
 		format_pte(pudp, pud_val(*pudp));
 		return;
 	}
@@ -3367,19 +3368,22 @@ static void show_pte(unsigned long addr)
 		return;
 	}
 
-	if (pmd_is_leaf(*pmdp)) {
+	if (pmd_leaf(*pmdp)) {
 		format_pte(pmdp, pmd_val(*pmdp));
 		return;
 	}
 	printf("pmdp @ 0x%px = 0x%016lx\n", pmdp, pmd_val(*pmdp));
 
 	ptep = pte_offset_map(pmdp, addr);
-	if (pte_none(*ptep)) {
+	if (!ptep || pte_none(*ptep)) {
+		if (ptep)
+			pte_unmap(ptep);
 		printf("no valid PTE\n");
 		return;
 	}
 
 	format_pte(ptep, pte_val(*ptep));
+	pte_unmap(ptep);
 
 	sync();
 	__delay(200);
@@ -3539,7 +3543,7 @@ scanhex(unsigned long *vp)
 		}
 	} else if (c == '$') {
 		int i;
-		for (i=0; i<63; i++) {
+		for (i = 0; i < (KSYM_NAME_LEN - 1); i++) {
 			c = inchar();
 			if (isspace(c) || c == '\0') {
 				termch = c;
@@ -3658,7 +3662,7 @@ symbol_lookup(void)
 	int type = inchar();
 	unsigned long addr, cpu;
 	void __percpu *ptr = NULL;
-	static char tmp[64];
+	static char tmp[KSYM_NAME_LEN];
 
 	switch (type) {
 	case 'a':
@@ -3667,7 +3671,7 @@ symbol_lookup(void)
 		termch = 0;
 		break;
 	case 's':
-		getstring(tmp, 64);
+		getstring(tmp, KSYM_NAME_LEN);
 		if (setjmp(bus_error_jmp) == 0) {
 			catch_memory_errors = 1;
 			sync();
@@ -3682,7 +3686,7 @@ symbol_lookup(void)
 		termch = 0;
 		break;
 	case 'p':
-		getstring(tmp, 64);
+		getstring(tmp, KSYM_NAME_LEN);
 		if (setjmp(bus_error_jmp) == 0) {
 			catch_memory_errors = 1;
 			sync();
@@ -3823,9 +3827,9 @@ static void dump_tlb_44x(void)
 #ifdef CONFIG_PPC_BOOK3E_64
 static void dump_tlb_book3e(void)
 {
-	u32 mmucfg, pidmask, lpidmask;
+	u32 mmucfg;
 	u64 ramask;
-	int i, tlb, ntlbs, pidsz, lpidsz, rasz, lrat = 0;
+	int i, tlb, ntlbs, pidsz, lpidsz, rasz;
 	int mmu_version;
 	static const char *pgsz_names[] = {
 		"  1K",
@@ -3869,12 +3873,8 @@ static void dump_tlb_book3e(void)
 	pidsz = ((mmucfg >> 6) & 0x1f) + 1;
 	lpidsz = (mmucfg >> 24) & 0xf;
 	rasz = (mmucfg >> 16) & 0x7f;
-	if ((mmu_version > 1) && (mmucfg & 0x10000))
-		lrat = 1;
 	printf("Book3E MMU MAV=%d.0,%d TLBs,%d-bit PID,%d-bit LPID,%d-bit RA\n",
 	       mmu_version, ntlbs, pidsz, lpidsz, rasz);
-	pidmask = (1ul << pidsz) - 1;
-	lpidmask = (1ul << lpidsz) - 1;
 	ramask = (1ull << rasz) - 1;
 
 	for (tlb = 0; tlb < ntlbs; tlb++) {
@@ -3986,7 +3986,7 @@ static void xmon_init(int enable)
 }
 
 #ifdef CONFIG_MAGIC_SYSRQ
-static void sysrq_handle_xmon(int key)
+static void sysrq_handle_xmon(u8 key)
 {
 	if (xmon_is_locked_down()) {
 		clear_all_bpt();

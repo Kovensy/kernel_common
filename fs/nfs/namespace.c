@@ -182,7 +182,7 @@ struct vfsmount *nfs_d_automount(struct path *path)
 	ctx->version		= client->rpc_ops->version;
 	ctx->minorversion	= client->cl_minorversion;
 	ctx->nfs_mod		= client->cl_nfs_mod;
-	__module_get(ctx->nfs_mod->owner);
+	get_nfs_version(ctx->nfs_mod);
 
 	ret = client->rpc_ops->submount(fc, server);
 	if (ret < 0) {
@@ -215,7 +215,8 @@ nfs_namespace_getattr(struct mnt_idmap *idmap,
 	if (NFS_FH(d_inode(path->dentry))->size != 0)
 		return nfs_getattr(idmap, path, stat, request_mask,
 				   query_flags);
-	generic_fillattr(&nop_mnt_idmap, d_inode(path->dentry), stat);
+	generic_fillattr(&nop_mnt_idmap, request_mask, d_inode(path->dentry),
+			 stat);
 	return 0;
 }
 

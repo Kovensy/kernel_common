@@ -7,7 +7,6 @@
 #include <linux/types.h>
 #include <linux/nodemask.h>
 #include <uapi/linux/oom.h>
-#include <linux/sched/coredump.h> /* MMF_* */
 #include <linux/mm.h> /* VM_FAULT* */
 
 struct zonelist;
@@ -109,6 +108,8 @@ extern int unregister_oom_notifier(struct notifier_block *nb);
 
 extern bool oom_killer_disable(signed long timeout);
 extern void oom_killer_enable(void);
+
+extern void dump_tasks(struct oom_control *oc);
 
 extern struct task_struct *find_lock_task_mm(struct task_struct *p);
 

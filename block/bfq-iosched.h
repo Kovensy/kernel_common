@@ -20,7 +20,6 @@
 
 #define BFQ_DEFAULT_QUEUE_IOPRIO	4
 
-#define BFQ_WEIGHT_LEGACY_DFL	100
 #define BFQ_DEFAULT_GRP_IOPRIO	0
 #define BFQ_DEFAULT_GRP_CLASS	IOPRIO_CLASS_BE
 
@@ -1004,9 +1003,6 @@ struct bfq_group {
 	/* must be the first member */
 	struct blkg_policy_data pd;
 
-	/* cached path for this blkg (see comments in bfq_bic_update_cgroup) */
-	char blkg_path[128];
-
 	/* reference counter (see comments in bfq_bic_update_cgroup) */
 	refcount_t ref;
 
@@ -1160,6 +1156,8 @@ void bfq_del_bfqq_busy(struct bfq_queue *bfqq, bool expiration);
 void bfq_add_bfqq_busy(struct bfq_queue *bfqq);
 void bfq_add_bfqq_in_groups_with_pending_reqs(struct bfq_queue *bfqq);
 void bfq_del_bfqq_in_groups_with_pending_reqs(struct bfq_queue *bfqq);
+void bfq_reassign_last_bfqq(struct bfq_queue *cur_bfqq,
+			    struct bfq_queue *new_bfqq);
 
 /* --------------- end of interface of B-WF2Q+ ---------------- */
 
@@ -1187,11 +1185,6 @@ struct bfq_group *bfqq_group(struct bfq_queue *bfqq);
 			"%s " fmt, pid_str, ##args);			\
 } while (0)
 
-#define bfq_log_bfqg(bfqd, bfqg, fmt, args...)	do {			\
-	blk_add_cgroup_trace_msg((bfqd)->queue,				\
-		&bfqg_to_blkg(bfqg)->blkcg->css, fmt, ##args);		\
-} while (0)
-
 #else /* CONFIG_BFQ_GROUP_IOSCHED */
 
 #define bfq_log_bfqq(bfqd, bfqq, fmt, args...) do {	\
@@ -1201,7 +1194,6 @@ struct bfq_group *bfqq_group(struct bfq_queue *bfqq);
 	bfq_bfqq_name((bfqq), pid_str, MAX_BFQQ_NAME_LENGTH);		\
 	blk_add_trace_msg((bfqd)->queue, "%s " fmt, pid_str, ##args);	\
 } while (0)
-#define bfq_log_bfqg(bfqd, bfqg, fmt, args...)		do {} while (0)
 
 #endif /* CONFIG_BFQ_GROUP_IOSCHED */
 

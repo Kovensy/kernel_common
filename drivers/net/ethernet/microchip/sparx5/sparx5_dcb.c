@@ -234,10 +234,11 @@ static int sparx5_dcb_ieee_dscp_setdel(struct net_device *dev,
 						     struct dcb_app *))
 {
 	struct sparx5_port *port = netdev_priv(dev);
+	struct sparx5 *sparx5 = port->sparx5;
 	struct sparx5_port *port_itr;
 	int err, i;
 
-	for (i = 0; i < SPX5_PORTS; i++) {
+	for (i = 0; i < sparx5->data->consts->n_ports; i++) {
 		port_itr = port->sparx5->ports[i];
 		if (!port_itr)
 			continue;
@@ -247,6 +248,21 @@ static int sparx5_dcb_ieee_dscp_setdel(struct net_device *dev,
 	}
 
 	return 0;
+}
+
+static int sparx5_dcb_ieee_delapp(struct net_device *dev, struct dcb_app *app)
+{
+	int err;
+
+	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
+		err = sparx5_dcb_ieee_dscp_setdel(dev, app, dcb_ieee_delapp);
+	else
+		err = dcb_ieee_delapp(dev, app);
+
+	if (err < 0)
+		return err;
+
+	return sparx5_dcb_app_update(dev);
 }
 
 static int sparx5_dcb_ieee_setapp(struct net_device *dev, struct dcb_app *app)
@@ -264,7 +280,7 @@ static int sparx5_dcb_ieee_setapp(struct net_device *dev, struct dcb_app *app)
 	if (prio) {
 		app_itr = *app;
 		app_itr.priority = prio;
-		dcb_ieee_delapp(dev, &app_itr);
+		sparx5_dcb_ieee_delapp(dev, &app_itr);
 	}
 
 	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
@@ -279,21 +295,6 @@ static int sparx5_dcb_ieee_setapp(struct net_device *dev, struct dcb_app *app)
 
 out:
 	return err;
-}
-
-static int sparx5_dcb_ieee_delapp(struct net_device *dev, struct dcb_app *app)
-{
-	int err;
-
-	if (app->selector == IEEE_8021QAZ_APP_SEL_DSCP)
-		err = sparx5_dcb_ieee_dscp_setdel(dev, app, dcb_ieee_delapp);
-	else
-		err = dcb_ieee_delapp(dev, app);
-
-	if (err < 0)
-		return err;
-
-	return sparx5_dcb_app_update(dev);
 }
 
 static int sparx5_dcb_setapptrust(struct net_device *dev, u8 *selectors,
@@ -386,7 +387,7 @@ int sparx5_dcb_init(struct sparx5 *sparx5)
 	struct sparx5_port *port;
 	int i;
 
-	for (i = 0; i < SPX5_PORTS; i++) {
+	for (i = 0; i < sparx5->data->consts->n_ports; i++) {
 		port = sparx5->ports[i];
 		if (!port)
 			continue;

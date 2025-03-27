@@ -57,7 +57,7 @@ static struct i2c_driver st_uvis25_driver = {
 		.pm = pm_sleep_ptr(&st_uvis25_pm_ops),
 		.of_match_table = st_uvis25_i2c_of_match,
 	},
-	.probe_new = st_uvis25_i2c_probe,
+	.probe = st_uvis25_i2c_probe,
 	.id_table = st_uvis25_i2c_id_table,
 };
 module_i2c_driver(st_uvis25_driver);
@@ -65,4 +65,4 @@ module_i2c_driver(st_uvis25_driver);
 MODULE_AUTHOR("Lorenzo Bianconi <lorenzo.bianconi83@gmail.com>");
 MODULE_DESCRIPTION("STMicroelectronics uvis25 i2c driver");
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(IIO_UVIS25);
+MODULE_IMPORT_NS("IIO_UVIS25");

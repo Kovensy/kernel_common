@@ -32,6 +32,7 @@ static bool inv_mpu_i2c_aux_bus(struct device *dev)
 	case INV_ICM20608D:
 	case INV_ICM20609:
 	case INV_ICM20689:
+	case INV_ICM20600:
 	case INV_ICM20602:
 	case INV_IAM20680:
 		/* no i2c auxiliary bus on the chip */
@@ -141,7 +142,7 @@ static int inv_mpu_probe(struct i2c_client *client)
 		if (!st->muxc)
 			return -ENOMEM;
 		st->muxc->priv = dev_get_drvdata(&client->dev);
-		result = i2c_mux_add_adapter(st->muxc, 0, 0, 0);
+		result = i2c_mux_add_adapter(st->muxc, 0, 0);
 		if (result)
 			return result;
 		result = inv_mpu_acpi_create_mux_client(client);
@@ -183,9 +184,12 @@ static const struct i2c_device_id inv_mpu_id[] = {
 	{"icm20608d", INV_ICM20608D},
 	{"icm20609", INV_ICM20609},
 	{"icm20689", INV_ICM20689},
+	{"icm20600", INV_ICM20600},
 	{"icm20602", INV_ICM20602},
 	{"icm20690", INV_ICM20690},
 	{"iam20680", INV_IAM20680},
+	{"iam20680hp", INV_IAM20680HP},
+	{"iam20680ht", INV_IAM20680HT},
 	{}
 };
 
@@ -237,6 +241,10 @@ static const struct of_device_id inv_of_match[] = {
 		.data = (void *)INV_ICM20689
 	},
 	{
+		.compatible = "invensense,icm20600",
+		.data = (void *)INV_ICM20600
+	},
+	{
 		.compatible = "invensense,icm20602",
 		.data = (void *)INV_ICM20602
 	},
@@ -247,6 +255,14 @@ static const struct of_device_id inv_of_match[] = {
 	{
 		.compatible = "invensense,iam20680",
 		.data = (void *)INV_IAM20680
+	},
+	{
+		.compatible = "invensense,iam20680hp",
+		.data = (void *)INV_IAM20680HP
+	},
+	{
+		.compatible = "invensense,iam20680ht",
+		.data = (void *)INV_IAM20680HT
 	},
 	{ }
 };
@@ -259,7 +275,7 @@ static const struct acpi_device_id inv_acpi_match[] = {
 MODULE_DEVICE_TABLE(acpi, inv_acpi_match);
 
 static struct i2c_driver inv_mpu_driver = {
-	.probe_new	=	inv_mpu_probe,
+	.probe		=	inv_mpu_probe,
 	.remove		=	inv_mpu_remove,
 	.id_table	=	inv_mpu_id,
 	.driver = {
@@ -275,4 +291,4 @@ module_i2c_driver(inv_mpu_driver);
 MODULE_AUTHOR("Invensense Corporation");
 MODULE_DESCRIPTION("Invensense device MPU6050 driver");
 MODULE_LICENSE("GPL");
-MODULE_IMPORT_NS(IIO_MPU6050);
+MODULE_IMPORT_NS("IIO_MPU6050");
